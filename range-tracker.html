@@ -1,0 +1,520 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+  <title>Range Tracker</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #111;
+      --surface: #1c1c1c;
+      --surface2: #272727;
+      --border: #333;
+      --text: #e8e8e8;
+      --muted: #777;
+      --accent: #4caf50;
+      --accent-dim: #2e7d32;
+      --pull-bg: #b71c1c44; --pull: #ef9a9a;
+      --draw-bg: #e6510044; --draw: #ffcc80;
+      --straight-bg: #1b5e2044; --straight: #a5d6a7;
+      --fade-bg: #0d47a144; --fade: #90caf9;
+      --push-bg: #4a148c44; --push: #ce93d8;
+    }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      min-height: 100vh;
+      padding: 12px;
+      max-width: 560px;
+      margin: 0 auto;
+    }
+
+    /* ── Header ── */
+    .header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding-bottom: 14px;
+      border-bottom: 1px solid var(--border);
+      margin-bottom: 18px;
+    }
+    .header h1 { font-size: 1.25rem; font-weight: 700; letter-spacing: 0.3px; }
+    .header .sub { font-size: 0.75rem; color: var(--muted); margin-top: 2px; }
+
+    .btn-new {
+      background: var(--surface2);
+      color: var(--text);
+      border: 1px solid var(--border);
+      border-radius: 7px;
+      padding: 8px 13px;
+      font-size: 0.82rem;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    .btn-new:hover { border-color: var(--accent); color: var(--accent); }
+
+    /* ── Labels ── */
+    .label {
+      font-size: 0.65rem;
+      text-transform: uppercase;
+      letter-spacing: 1.2px;
+      color: var(--muted);
+      margin-bottom: 7px;
+    }
+
+    /* ── Club grid ── */
+    .club-grid {
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      gap: 6px;
+      margin-bottom: 16px;
+    }
+
+    .btn-club {
+      background: var(--surface2);
+      color: var(--text);
+      border: 2px solid transparent;
+      border-radius: 8px;
+      padding: 11px 4px;
+      font-size: 0.82rem;
+      font-weight: 700;
+      cursor: pointer;
+      text-align: center;
+    }
+    .btn-club:hover { border-color: #444; }
+    .btn-club.sel { background: var(--accent-dim); border-color: var(--accent); color: #fff; }
+
+    /* ── Direction row ── */
+    .dir-row {
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      gap: 6px;
+      margin-bottom: 16px;
+    }
+
+    .btn-dir {
+      background: var(--surface2);
+      color: var(--text);
+      border: 2px solid transparent;
+      border-radius: 8px;
+      padding: 10px 4px;
+      font-size: 0.78rem;
+      font-weight: 700;
+      cursor: pointer;
+      text-align: center;
+    }
+    .btn-dir:hover { border-color: #444; }
+    .btn-dir[data-d="Pull"].sel    { background: var(--pull-bg);     border-color: var(--pull);     color: var(--pull); }
+    .btn-dir[data-d="Draw"].sel    { background: var(--draw-bg);     border-color: var(--draw);     color: var(--draw); }
+    .btn-dir[data-d="Straight"].sel{ background: var(--straight-bg); border-color: var(--straight); color: var(--straight); }
+    .btn-dir[data-d="Fade"].sel    { background: var(--fade-bg);     border-color: var(--fade);     color: var(--fade); }
+    .btn-dir[data-d="Push"].sel    { background: var(--push-bg);     border-color: var(--push);     color: var(--push); }
+
+    /* ── Distance + Log ── */
+    .entry-row {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      margin-bottom: 22px;
+    }
+
+    .dist-wrap {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      background: var(--surface2);
+      border: 2px solid var(--border);
+      border-radius: 8px;
+      padding: 0 10px;
+    }
+    .dist-wrap:focus-within { border-color: var(--accent); }
+    .dist-wrap .unit { font-size: 0.75rem; color: var(--muted); }
+
+    .dist-input {
+      background: transparent;
+      border: none;
+      color: var(--text);
+      font-size: 1.1rem;
+      font-weight: 700;
+      width: 68px;
+      padding: 9px 0;
+      text-align: center;
+      outline: none;
+    }
+    .dist-input::placeholder { color: #444; }
+
+    .btn-log {
+      flex: 1;
+      background: var(--accent);
+      color: #000;
+      border: none;
+      border-radius: 8px;
+      padding: 11px;
+      font-size: 1rem;
+      font-weight: 800;
+      cursor: pointer;
+      letter-spacing: 0.3px;
+      transition: opacity 0.1s;
+    }
+    .btn-log:disabled { opacity: 0.25; cursor: not-allowed; }
+    .btn-log:not(:disabled):active { opacity: 0.7; }
+
+    @keyframes pop { 0%,100%{transform:scale(1)} 40%{transform:scale(1.06)} }
+    .btn-log.pop { animation: pop 0.25s ease; }
+
+    /* ── Stats table ── */
+    .stats-hd {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 8px;
+    }
+    .badge {
+      background: var(--surface2);
+      border-radius: 20px;
+      padding: 3px 10px;
+      font-size: 0.75rem;
+      color: var(--muted);
+    }
+    .badge b { color: var(--accent); }
+
+    table { width: 100%; border-collapse: collapse; font-size: 0.83rem; }
+    thead th {
+      color: var(--muted);
+      font-size: 0.65rem;
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+      padding: 5px 8px;
+      text-align: left;
+      border-bottom: 1px solid var(--border);
+    }
+    tbody tr { border-bottom: 1px solid #1e1e1e; }
+    tbody td { padding: 7px 8px; }
+    tbody tr.dim td { color: #3a3a3a; }
+
+    .pill {
+      display: inline-block;
+      border-radius: 4px;
+      padding: 2px 7px;
+      font-size: 0.72rem;
+      font-weight: 700;
+    }
+    .pill.Pull     { background: var(--pull-bg);     color: var(--pull); }
+    .pill.Draw     { background: var(--draw-bg);     color: var(--draw); }
+    .pill.Straight { background: var(--straight-bg); color: var(--straight); }
+    .pill.Fade     { background: var(--fade-bg);     color: var(--fade); }
+    .pill.Push     { background: var(--push-bg);     color: var(--push); }
+
+    /* ── History ── */
+    .history-section { border-top: 1px solid var(--border); padding-top: 18px; margin-top: 22px; }
+
+    .hist-toggle {
+      background: none;
+      border: none;
+      color: var(--muted);
+      font-size: 0.65rem;
+      text-transform: uppercase;
+      letter-spacing: 1.2px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      margin-bottom: 12px;
+    }
+    .hist-toggle:hover { color: var(--text); }
+
+    .session-card {
+      background: var(--surface);
+      border-radius: 9px;
+      margin-bottom: 8px;
+      overflow: hidden;
+      border: 1px solid var(--border);
+    }
+
+    .sess-hd {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 11px 13px;
+      cursor: pointer;
+    }
+    .sess-hd:hover { background: var(--surface2); }
+
+    .sess-title { font-size: 0.88rem; font-weight: 600; }
+    .sess-meta  { font-size: 0.72rem; color: var(--muted); margin-top: 1px; }
+
+    .sess-right { display: flex; align-items: center; gap: 10px; }
+
+    .btn-del {
+      background: none;
+      border: none;
+      color: #444;
+      font-size: 0.9rem;
+      cursor: pointer;
+      padding: 2px 5px;
+      border-radius: 4px;
+      line-height: 1;
+    }
+    .btn-del:hover { color: #e57373; background: #3300001a; }
+
+    .sess-body { padding: 0 13px 12px; display: none; }
+    .sess-body.open { display: block; }
+
+    .empty { text-align: center; color: var(--muted); padding: 18px; font-size: 0.83rem; }
+
+    .arrow { font-size: 0.7rem; color: var(--muted); }
+  </style>
+</head>
+<body>
+
+<div class="header">
+  <div>
+    <h1>Range Tracker</h1>
+    <div class="sub" id="hDate"></div>
+  </div>
+  <button class="btn-new" onclick="newSession()">New Session</button>
+</div>
+
+<div class="label">Club</div>
+<div class="club-grid" id="clubGrid"></div>
+
+<div class="label">Direction</div>
+<div class="dir-row" id="dirRow"></div>
+
+<div class="entry-row">
+  <div class="dist-wrap">
+    <input class="dist-input" id="distInput" type="number" min="1" max="400"
+           inputmode="numeric" placeholder="—">
+    <span class="unit">yd</span>
+  </div>
+  <button class="btn-log" id="logBtn" onclick="logShot()" disabled>Log Shot</button>
+</div>
+
+<div class="stats-hd">
+  <div class="label" style="margin:0">Session Stats</div>
+  <div class="badge"><b id="totalCount">0</b> shots</div>
+</div>
+<table>
+  <thead>
+    <tr>
+      <th>Club</th><th>#</th><th>Avg Dist</th><th>Spread</th><th>Tendency</th>
+    </tr>
+  </thead>
+  <tbody id="statsBody"></tbody>
+</table>
+
+<div class="history-section">
+  <button class="hist-toggle" onclick="toggleHist()">
+    <span id="histArrow">▶</span> Past Sessions
+  </button>
+  <div id="histList" style="display:none"></div>
+</div>
+
+<script>
+const CLUBS = ['PW','9i','8i','7i','6i','5i','4H','3W','Mini D','Driver'];
+const DIRS  = ['Pull','Draw','Straight','Fade','Push'];
+
+let selClub = null, selDir = null, cur = null, histOpen = false;
+
+// ── Init ────────────────────────────────────────────────────────────────────
+function init() {
+  document.getElementById('hDate').textContent = fmtDate(new Date());
+  buildGrid();
+  buildDirs();
+  cur = loadCur() || freshSession();
+  renderStats();
+  document.getElementById('distInput').addEventListener('input', syncBtn);
+}
+
+function fmtDate(d) {
+  return d.toLocaleDateString('en-US', {weekday:'short', month:'short', day:'numeric', year:'numeric'});
+}
+
+// ── Build UI ─────────────────────────────────────────────────────────────────
+function buildGrid() {
+  const g = document.getElementById('clubGrid');
+  CLUBS.forEach(c => {
+    const b = document.createElement('button');
+    b.className = 'btn-club'; b.textContent = c; b.id = 'c-'+c;
+    b.onclick = () => pickClub(c);
+    g.appendChild(b);
+  });
+}
+
+function buildDirs() {
+  const r = document.getElementById('dirRow');
+  DIRS.forEach(d => {
+    const b = document.createElement('button');
+    b.className = 'btn-dir'; b.textContent = d; b.dataset.d = d; b.id = 'd-'+d;
+    b.onclick = () => pickDir(d);
+    r.appendChild(b);
+  });
+}
+
+function pickClub(c) {
+  selClub = c;
+  document.querySelectorAll('.btn-club').forEach(b => b.classList.remove('sel'));
+  document.getElementById('c-'+c).classList.add('sel');
+  syncBtn();
+}
+
+function pickDir(d) {
+  selDir = d;
+  document.querySelectorAll('.btn-dir').forEach(b => b.classList.remove('sel'));
+  document.getElementById('d-'+d).classList.add('sel');
+  syncBtn();
+}
+
+function syncBtn() {
+  const v = parseInt(document.getElementById('distInput').value);
+  document.getElementById('logBtn').disabled = !(selClub && selDir && v > 0 && v <= 400);
+}
+
+// ── Sessions ──────────────────────────────────────────────────────────────────
+function freshSession() {
+  const s = { id: new Date().toISOString(), date: fmtDate(new Date()), shots: [] };
+  saveCur(s); return s;
+}
+function loadCur()  { const r = localStorage.getItem('rng_cur');  return r ? JSON.parse(r) : null; }
+function saveCur(s) { localStorage.setItem('rng_cur', JSON.stringify(s)); }
+function getSaved() { const r = localStorage.getItem('rng_hist'); return r ? JSON.parse(r) : []; }
+
+function newSession() {
+  if (cur.shots.length > 0) {
+    if (!confirm(`Archive this session (${cur.shots.length} shots) and start fresh?`)) return;
+    const h = getSaved(); h.unshift(cur); localStorage.setItem('rng_hist', JSON.stringify(h));
+  }
+  cur = freshSession();
+  selClub = null; selDir = null;
+  document.querySelectorAll('.btn-club,.btn-dir').forEach(b => b.classList.remove('sel'));
+  document.getElementById('distInput').value = '';
+  syncBtn(); renderStats();
+  if (histOpen) renderHist();
+}
+
+// ── Log Shot ──────────────────────────────────────────────────────────────────
+function logShot() {
+  const dist = parseInt(document.getElementById('distInput').value);
+  if (!selClub || !selDir || !dist) return;
+  cur.shots.push({ club: selClub, direction: selDir, distance: dist, ts: new Date().toISOString() });
+  saveCur(cur);
+
+  const btn = document.getElementById('logBtn');
+  btn.classList.remove('pop');
+  void btn.offsetWidth;
+  btn.classList.add('pop');
+
+  selDir = null;
+  document.querySelectorAll('.btn-dir').forEach(b => b.classList.remove('sel'));
+  document.getElementById('distInput').value = '';
+  syncBtn(); renderStats();
+}
+
+// ── Stats ─────────────────────────────────────────────────────────────────────
+function renderStats() {
+  const shots = cur ? cur.shots : [];
+  document.getElementById('totalCount').textContent = shots.length;
+  const tb = document.getElementById('statsBody');
+  tb.innerHTML = '';
+  CLUBS.forEach(club => {
+    const cs = shots.filter(s => s.club === club);
+    const tr = document.createElement('tr');
+    if (!cs.length) {
+      tr.className = 'dim';
+      tr.innerHTML = `<td>${club}</td><td>—</td><td>—</td><td>—</td><td>—</td>`;
+    } else {
+      const avg  = Math.round(cs.reduce((a,s) => a+s.distance, 0) / cs.length);
+      const sd   = Math.round(stddev(cs.map(s => s.distance)));
+      const tend = modeOf(cs.map(s => s.direction));
+      const pct  = Math.round(cs.filter(s => s.direction === tend).length / cs.length * 100);
+      tr.innerHTML = `
+        <td><b>${club}</b></td>
+        <td>${cs.length}</td>
+        <td>${avg} yd</td>
+        <td>±${sd}</td>
+        <td><span class="pill ${tend}">${tend} ${pct}%</span></td>`;
+    }
+    tb.appendChild(tr);
+  });
+}
+
+function stddev(arr) {
+  if (arr.length < 2) return 0;
+  const m = arr.reduce((a,b)=>a+b,0)/arr.length;
+  return Math.sqrt(arr.reduce((s,x)=>s+Math.pow(x-m,2),0)/arr.length);
+}
+function modeOf(arr) {
+  const c = {}; arr.forEach(v => c[v]=(c[v]||0)+1);
+  return Object.keys(c).reduce((a,b)=>c[a]>c[b]?a:b);
+}
+
+// ── History ───────────────────────────────────────────────────────────────────
+function toggleHist() {
+  histOpen = !histOpen;
+  document.getElementById('histList').style.display = histOpen ? 'block' : 'none';
+  document.getElementById('histArrow').textContent = histOpen ? '▼' : '▶';
+  if (histOpen) renderHist();
+}
+
+function renderHist() {
+  const el = document.getElementById('histList');
+  const sessions = getSaved();
+  if (!sessions.length) { el.innerHTML = '<div class="empty">No past sessions yet.</div>'; return; }
+  el.innerHTML = '';
+  sessions.forEach((s, i) => {
+    const card = document.createElement('div');
+    card.className = 'session-card';
+    card.innerHTML = `
+      <div class="sess-hd" onclick="toggleCard(${i})">
+        <div>
+          <div class="sess-title">${s.date}</div>
+          <div class="sess-meta">${s.shots.length} shot${s.shots.length!==1?'s':''}</div>
+        </div>
+        <div class="sess-right">
+          <button class="btn-del" onclick="delSession(event,${i})" title="Delete">✕</button>
+          <span class="arrow" id="a-${i}">▶</span>
+        </div>
+      </div>
+      <div class="sess-body" id="b-${i}">${sessTable(s)}</div>`;
+    el.appendChild(card);
+  });
+}
+
+function sessTable(s) {
+  const rows = CLUBS.map(club => {
+    const cs = s.shots.filter(x => x.club === club);
+    if (!cs.length) return '';
+    const avg  = Math.round(cs.reduce((a,x)=>a+x.distance,0)/cs.length);
+    const sd   = Math.round(stddev(cs.map(x=>x.distance)));
+    const tend = modeOf(cs.map(x=>x.direction));
+    const pct  = Math.round(cs.filter(x=>x.direction===tend).length/cs.length*100);
+    return `<tr>
+      <td>${club}</td><td>${cs.length}</td><td>${avg} yd</td><td>±${sd}</td>
+      <td><span class="pill ${tend}">${tend} ${pct}%</span></td></tr>`;
+  }).join('');
+  return `<table><thead><tr><th>Club</th><th>#</th><th>Avg</th><th>Spread</th><th>Tendency</th></tr></thead>
+    <tbody>${rows||'<tr><td colspan="5" style="color:#444;padding:8px">No shots.</td></tr>'}</tbody></table>`;
+}
+
+function toggleCard(i) {
+  const b = document.getElementById('b-'+i), a = document.getElementById('a-'+i);
+  const open = b.classList.toggle('open');
+  a.textContent = open ? '▼' : '▶';
+}
+
+function delSession(e, i) {
+  e.stopPropagation();
+  if (!confirm('Delete this session?')) return;
+  const h = getSaved(); h.splice(i,1);
+  localStorage.setItem('rng_hist', JSON.stringify(h));
+  renderHist();
+}
+
+init();
+</script>
+</body>
+</html>
